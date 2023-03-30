@@ -5,107 +5,47 @@ import {
     validateFxn,
 } from './helpers.js';
 
-import { CITY_NAMES } from './data.js';
+// import 'xxhashjs';
 
-const NO_ONE = 0;
-const BY_A = 1;
-const BY_B = 2;
+import * as XXH from 'xxhashjs';
 
-interface Coordinate {
-    closed: boolean;
-    length: number;
-    openedBy: number;
-    x: number;
-    y: number;
-}
+const h1 = (string) =>
+    Math.abs(XXH.h32(0xabcd).update(string).digest().toNumber() % 100);
+const h2 = (string) =>
+    Math.abs(XXH.h32(0x1234).update(string).digest().toNumber() % 100);
+const h3 = (string) =>
+    Math.abs(XXH.h32(0x6789).update(string).digest().toNumber() % 100);
 
-class Node {
-    children: Node[];
-    terminus: boolean;
-    value: string;
+class BloomFilter {
+    _array: number[];
 
-    constructor(string) {
-        this.children = [];
-        this.terminus = false;
-        this.value = string[0] || '';
-        if (string.length > 1) {
-            this.children.push(new Node(string.substr(1)));
-        } else {
-            this.terminus = true;
-        }
+    constructor() {
+        this._array = new Array(100).fill(0);
     }
-
-    add(data: string) {
-        const value = data[0];
-        const next = data.substr(1);
-
-        for (let i = 0; i < this.children.length; i++) {
-            const child = this.children[i];
-
-            if (child.value === value) {
-                if (next) {
-                    child.add(next);
-                } else {
-                    child.terminus = true;
-                }
-
-                return;
-            }
-        }
-
-        this.children.push(new Node(data));
+    add(string) {
+        this._array[h1(string)] = 1;
+        this._array[h2(string)] = 1;
+        this._array[h3(string)] = 1;
     }
-    complete(data: string) {
-        let completions = [];
-
-        for (let i = 0; i < this.children.length; i++) {
-            const child = this.children[i];
-            completions = completions.concat(
-                child._childComplete(data, '', [])
-            );
-        }
-
-        return completions;
-    }
-
-    _childComplete(search, built, suggestions) {
-        if (suggestions.length >= 3 || (search && search[0] !== this.value)) {
-            return suggestions;
-        }
-
-        if (this.terminus) {
-            suggestions.push(`${built}${this.value}`);
-        }
-
-        this.children.forEach((child) =>
-            child._childComplete(
-                search.substr(1),
-                `${built}${this.value}`,
-                suggestions
-            )
+    contains(string) {
+        return !!(
+            this._array[h1(string)] &&
+            this._array[h2(string)] &&
+            this._array[h3(string)]
         );
-
-        return suggestions;
     }
 }
-
-const createTrie = (words: string[]) => {
-    const root = new Node('');
-
-    for (let i = 0; i < words.length; i++) {
-        const word: string = words[i];
-        root.add(word.toLowerCase());
-    }
-
-    return root;
-};
 
 consoleStart();
 
-const root = createTrie(CITY_NAMES.slice(0, 10));
-const completions = root.complete('san');
+let bf = new BloomFilter();
+bf.add('Brian');
+validateFxn(bf.contains('Brian'), true);
+validateFxn(bf.contains('David'), false);
 
-validateFxn(completions.length, 3);
+bf.add('David');
+validateFxn(bf.contains('Brian'), true);
+validateFxn(bf.contains('David'), true);
 
 consoleEnd();
 consoleBuffer();
